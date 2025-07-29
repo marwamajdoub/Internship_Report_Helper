@@ -1,40 +1,49 @@
-# src/endpoints/upload.py
-
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, UploadFile, File, HTTPException
 import os
 import shutil
 
-# Create a new APIRouter instance to handle file upload endpoints
+from src.utilities.text_utils import extract_text_from_file, chunk_text, save_chunks_to_json
+
 router = APIRouter()
 
-# Define the directory where uploaded files will be stored
+# Directory to store uploaded files
 UPLOAD_DIR = "src/data"
-
-# Ensure the upload directory exists
-os.makedirs(UPLOAD_DIR, exist_ok=True) 
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/")
 async def upload_file(file: UploadFile = File(...)):
     """
-    Upload a single file (PDF, TXT, etc.) to the server.
-
-    - Saves the uploaded file to the `src/data/` directory.
-    - Returns the filename and a success message.
-
-    Args:
-        file (UploadFile): File uploaded through the API.
+    Upload a file (PDF, TXT, etc.), extract and chunk its text content, 
+    and save both the file and its chunks.
 
     Returns:
-        dict: Filename and success message.
+        - filename: original uploaded file name
+        - num_chunks: number of text chunks extracted
+        - chunks_saved_to: path to saved chunked JSON
+        - message: upload + process status
     """
-    # Build the full file path
+    # Path to save the file
     file_path = os.path.join(UPLOAD_DIR, file.filename)
 
-    # Save the file using a binary write operation
+    # Save the file to disk
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    try:
+        # Extract text from file
+        text = extract_text_from_file(file_path)
+
+        # Chunk the text into pieces
+        chunks = chunk_text(text, chunk_size=500)
+
+        # Save the chunks to JSON
+        chunk_file_path = save_chunks_to_json(chunks, file.filename)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Processing failed: {str(e)}")
+
     return {
         "filename": file.filename,
-        "message": "File uploaded successfully"
+        "num_chunks": len(chunks),
+        "chunks_saved_to": chunk_file_path,
+        "message": "File uploaded and processed successfully"
     }
