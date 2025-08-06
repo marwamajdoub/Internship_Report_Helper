@@ -23,9 +23,9 @@ def search_faiss(data: SearchRequest):
     # Perform FAISS search
     distances, indices = index.search(query_vector, data.top_k)
 
+    # Convert to lists for JSON serialization
     return {
         "query": data.query_text,
-        "distances": distances,
-        "indices": indices
+        "distances": distances.tolist(),
+        "indices": indices.tolist()
     }
-

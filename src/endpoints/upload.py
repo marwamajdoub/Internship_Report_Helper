@@ -12,32 +12,31 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/")
 async def upload_file(file: UploadFile = File(...)):
-    """
-    Upload a file (PDF, TXT, etc.), extract and chunk its text content, 
-    and save both the file and its chunks.
-
-    Returns:
-        - filename: original uploaded file name
-        - num_chunks: number of text chunks extracted
-        - chunks_saved_to: path to saved chunked JSON
-        - message: upload + process status
-    """
-    # Path to save the file
     file_path = os.path.join(UPLOAD_DIR, file.filename)
-
-    # Save the file to disk
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # Extract text from file
+        # Extract text
         text = extract_text_from_file(file_path)
 
-        # Chunk the text into pieces
+        # Chunk the text
         chunks = chunk_text(text, chunk_size=500)
 
-        # Save the chunks to JSON
+        # Save the chunks
         chunk_file_path = save_chunks_to_json(chunks, file.filename)
+
+        # ---- NEW: Embedding and Indexing ----
+        from src.embeddings.dense_embedder import DenseEmbedder
+        from src.embeddings.faiss_index import FaissIndex
+
+        embedder = DenseEmbedder()
+        DIMENSION = 384  # adjust if needed
+        faiss_index = FaissIndex(dim=DIMENSION)
+
+        embeddings = embedder.encode(chunks)
+        faiss_index.add(embeddings)
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Processing failed: {str(e)}")
 
@@ -45,5 +44,5 @@ async def upload_file(file: UploadFile = File(...)):
         "filename": file.filename,
         "num_chunks": len(chunks),
         "chunks_saved_to": chunk_file_path,
-        "message": "File uploaded and processed successfully"
+        "message": "File uploaded, processed, and indexed successfully"
     }
