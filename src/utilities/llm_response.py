@@ -1,30 +1,13 @@
-import openai
-import os
+from transformers import pipeline
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+qa_pipeline = pipeline("question-answering", model="deepset/roberta-base-squad2")
 
-def generate_answer(query: str, contexts: list[str], model="gpt-3.5-turbo") -> str:
-    context_text = "\n\n".join(contexts)
-    prompt = f"""
-You are an AI assistant helping students write internship reports.
-
-Context:
-{context_text}
-
-Question:
-{query}
-
-Answer:
-"""
-
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": "You are an expert in analyzing internship reports."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.3,
-        max_tokens=500
-    )
-
-    return response['choices'][0]['message']['content']
+def generate_answer(query: str, contexts: list[str]) -> str:
+    context = "\n\n".join(contexts)
+    
+    result = qa_pipeline({
+        "question": query,
+        "context": context
+    })
+    
+    return result["answer"]
